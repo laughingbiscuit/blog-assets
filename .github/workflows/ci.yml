@@ -12,14 +12,12 @@ jobs:
   scripts:
     runs-on: ubuntu-latest
     # Alpine container driving the runner's Docker daemon. Containerlab
-    # needs the host's PID and network namespaces to wire up lab links.
+    # needs the host PID namespace to wire up lab links.
     container:
       image: alpine:3.22
       options: >-
         --privileged
         --pid=host
-        --network=host
-        -v /var/run/docker.sock:/var/run/docker.sock
         -v /var/run/netns:/var/run/netns
         -v /var/lib/docker/containers:/var/lib/docker/containers
     steps:

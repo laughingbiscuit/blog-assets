@@ -12,7 +12,9 @@ jobs:
   scripts:
     runs-on: ubuntu-latest
     # Alpine container driving the runner's Docker daemon. Containerlab
-    # needs the host PID namespace to wire up lab links.
+    # needs the host PID and network namespaces to wire up lab links.
+    # Container jobs can't use --network=host, so scripts run under
+    # nsenter into PID 1's network namespace instead.
     container:
       image: alpine:3.22
       options: >-
@@ -23,7 +25,7 @@ jobs:
     steps:
       - name: Install Docker CLI and containerlab
         run: |
-          apk add --no-cache docker-cli git iproute2 curl
+          apk add --no-cache docker-cli git iproute2 curl util-linux-misc
           curl -fsSLo /tmp/clab.apk \
             "https://github.com/srl-labs/containerlab/releases/download/v${CONTAINERLAB_VERSION}/containerlab_${CONTAINERLAB_VERSION}_linux_amd64.apk"
           apk add --no-cache --allow-untrusted /tmp/clab.apk
@@ -37,6 +39,6 @@ jobs:
           set -e
           for script in scripts/*.sh; do
             echo "::group::$script"
-            sh "$script"
+            nsenter --target 1 --net sh "$script"
             echo "::endgroup::"
           done

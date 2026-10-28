@@ -9,7 +9,24 @@ env:
   CONTAINERLAB_VERSION: 0.82.0
 
 jobs:
-  scripts:
+  list:
+    runs-on: ubuntu-latest
+    outputs:
+      scripts: ${{ steps.list.outputs.scripts }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        run: |
+          echo "scripts=$(ls scripts/*.sh | xargs -n1 basename | jq -R -s -c 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
+
+  # One job per script, so each has its own log URL to share.
+  script:
+    needs: list
+    name: ${{ matrix.script }}
+    strategy:
+      fail-fast: false
+      matrix:
+        script: ${{ fromJSON(needs.list.outputs.scripts) }}
     runs-on: ubuntu-latest
     # Alpine container driving the runner's Docker daemon. Containerlab
     # needs the host PID and network namespaces to wire up lab links.
@@ -34,11 +51,5 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - name: Run scripts
-        run: |
-          set -e
-          for script in scripts/*.sh; do
-            echo "::group::$script"
-            nsenter --target 1 --net sh "$script"
-            echo "::endgroup::"
-          done
+      - name: Run ${{ matrix.script }}
+        run: nsenter --target 1 --net sh "scripts/${{ matrix.script }}"

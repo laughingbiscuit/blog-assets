@@ -49,11 +49,19 @@ topology:
 EOF
 
 # These let us tell each computer what to do.
+# A long command can be split into pieces. They are joined with spaces.
 runfromclient() {
-  containerlab exec --label clab-node-name=client --cmd "$1"
+  containerlab exec --label clab-node-name=client --cmd "$*"
 }
 runfromrouter() {
-  containerlab exec --label clab-node-name=router --cmd "$1"
+  containerlab exec --label clab-node-name=router --cmd "$*"
+}
+
+# This lets us listen on the client's cable while it does something.
+# First say what to listen for, then what the client should do.
+listenwhile() {
+  runfromclient "sh -c \"timeout 5 tcpdump -nli eth1 $1 2>/dev/null" \
+    "& sleep 1; $2; wait\""
 }
 
 # ============================================================
@@ -72,7 +80,7 @@ runfromclient 'ip neigh flush dev eth1'
 # First the client shouts "Who has 10.10.1.1?" (ARP).
 # The router answers with its name badge.
 # Then the hello and its reply travel on the cable.
-runfromclient 'sh -c "timeout 5 tcpdump -enli eth1 -c 4 arp or icmp 2>/dev/null & sleep 1; ping -c1 -W2 10.10.1.1; wait"'
+listenwhile '-e -c 4 arp or icmp' 'ping -c1 -W2 10.10.1.1'
 
 # Unplug the cable at the router's end.
 runfromrouter 'ip link set eth1 down'
@@ -138,17 +146,18 @@ runfromclient 'ping -c1 -W2 10.10.2.20'
 #   [S]  client: "Hello? Can we talk?"      (SYN)
 #   [S.] server: "Hello! Yes we can."       (SYN-ACK)
 #   [.]  client: "Great, let's talk."       (ACK)
-runfromclient 'sh -c "timeout 5 tcpdump -nli eth1 -c 3 tcp port 80 2>/dev/null & sleep 1; curl -s -o /dev/null http://10.10.2.20/ping; wait"'
+listenwhile '-c 3 tcp port 80' 'curl -s -o /dev/null http://10.10.2.20/ping'
 
 # Call door 81. Nobody is there.
 # The server hangs up straight away: [R] means "reset".
-runfromclient 'sh -c "timeout 5 tcpdump -nli eth1 -c 2 tcp port 81 2>/dev/null & sleep 1; curl -s --max-time 2 http://10.10.2.20:81/; wait"'
+listenwhile '-c 2 tcp port 81' 'curl -s --max-time 2 http://10.10.2.20:81/'
 
 # Send a UDP postcard to door 9999.
 # No "hello" first. The postcard just goes.
 # Nobody lives there, so the server sends back a note:
 # "port 9999 unreachable".
-runfromclient 'sh -c "timeout 5 tcpdump -nli eth1 -c 2 udp port 9999 or icmp 2>/dev/null & sleep 1; echo hello | nc -u -w1 10.10.2.20 9999; wait"'
+listenwhile '-c 2 udp port 9999 or icmp' \
+  'echo hello | nc -u -w1 10.10.2.20 9999'
 
 # ============================================================
 # APPLICATION — ASKING FOR A PAGE
@@ -162,7 +171,8 @@ runfromclient 'sh -c "timeout 5 tcpdump -nli eth1 -c 2 udp port 9999 or icmp 2>/
 # Type a request by hand and send it through door 80.
 # dos2unix hides the invisible end-of-line marks (\r) that HTTP
 # puts after each line.
-runfromclient 'sh -c "printf \"GET /ping HTTP/1.0\\r\\n\\r\\n\" | nc -w2 10.10.2.20 80 | dos2unix"'
+runfromclient 'sh -c "printf \"GET /ping HTTP/1.0\\r\\n\\r\\n\"' \
+  '| nc -w2 10.10.2.20 80 | dos2unix"'
 
 # Ask for a page that exists.
 # 200 means: "Here it is!"
@@ -173,4 +183,5 @@ runfromclient 'sh -c "curl -si --max-time 5 http://10.10.2.20/ping | dos2unix"'
 runfromclient 'sh -c "curl -si --max-time 5 http://10.10.2.20/nope | dos2unix"'
 
 # Ask for a message written in Base64, then turn it back.
-runfromclient 'sh -c "curl -sS --max-time 5 http://10.10.2.20/encoded | base64 -d"'
+runfromclient 'sh -c "curl -sS --max-time 5' \
+  'http://10.10.2.20/encoded | base64 -d"'

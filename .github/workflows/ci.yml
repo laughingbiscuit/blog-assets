@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CONTAINERLAB_VERSION: 0.82.0
+
+jobs:
+  scripts:
+    runs-on: ubuntu-latest
+    # Alpine container driving the runner's Docker daemon. Containerlab
+    # needs the host's PID and network namespaces to wire up lab links.
+    container:
+      image: alpine:3.22
+      options: >-
+        --privileged
+        --pid=host
+        --network=host
+        -v /var/run/docker.sock:/var/run/docker.sock
+        -v /var/run/netns:/var/run/netns
+        -v /var/lib/docker/containers:/var/lib/docker/containers
+    steps:
+      - name: Install Docker CLI and containerlab
+        run: |
+          apk add --no-cache docker-cli git iproute2 curl
+          curl -fsSLo /tmp/clab.apk \
+            "https://github.com/srl-labs/containerlab/releases/download/v${CONTAINERLAB_VERSION}/containerlab_${CONTAINERLAB_VERSION}_linux_amd64.apk"
+          apk add --no-cache --allow-untrusted /tmp/clab.apk
+          docker version
+          containerlab version
+
+      - uses: actions/checkout@v4
+
+      - name: Run scripts
+        run: |
+          set -e
+          for script in scripts/*.sh; do
+            echo "::group::$script"
+            sh "$script"
+            echo "::endgroup::"
+          done

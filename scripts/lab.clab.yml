@@ -25,7 +25,7 @@ topology:
         - ip link set eth1 up
 
     k3s-2:
-      cmd: &join >-
+      cmd: >-
         -c 'until ip -4 addr show eth1 2>/dev/null | grep -q "$K3S_NODE_IP"; do sleep 1; done;
         until kubectl --kubeconfig /shared/kubeconfig.yaml --server https://10.10.10.11:6443 --request-timeout=5s get node k3s-1 >/dev/null 2>&1; do sleep 2; done;
         exec k3s server'
@@ -39,7 +39,10 @@ topology:
         - ip link set eth1 up
 
     k3s-3:
-      cmd: *join
+      cmd: >-
+        -c 'until ip -4 addr show eth1 2>/dev/null | grep -q "$K3S_NODE_IP"; do sleep 1; done;
+        until kubectl --kubeconfig /shared/kubeconfig.yaml --server https://10.10.10.11:6443 --request-timeout=5s get node k3s-1 >/dev/null 2>&1; do sleep 2; done;
+        exec k3s server'
       env:
         K3S_URL: https://10.10.10.11:6443
         K3S_NODE_IP: 10.10.10.13

@@ -92,5 +92,5 @@ topology:
     - endpoints: [client:eth1, switch:eth4]
 
 EOF
-
+docker exec clab-oak-client kubectl wait --for=condition=Ready nodes --all --timeout=300s
 docker exec clab-oak-client kubectl get nodes -A -o wide

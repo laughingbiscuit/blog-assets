@@ -1,0 +1,6 @@
+docker exec clab-oak-k3s-2 sh -c '
+kubectl \
+  --kubeconfig /shared/kubeconfig.yaml \
+  --server https://10.10.10.11:6443 \
+  --request-timeout=5s get node k3s-1
+'

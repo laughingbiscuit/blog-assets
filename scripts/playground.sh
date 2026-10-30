@@ -1,13 +1,17 @@
 #!/bin/sh
-set -ve
+set -eu
 
-containerlab deploy -c -t scripts/lab.clab.yml
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+cd $DIR
+rm -f kubeconfig.yaml
+containerlab deploy -c -t lab.clab.yml
 
-until docker exec clab-oak-client kubectl get node k3s-1 >/dev/null 2>&1; do
-  sleep 5
+for node in k3s-1 k3s-2 k3s-3; do
+  echo "Waiting for $node..."
+  until docker exec clab-oak-client kubectl wait \
+    --for=condition=Ready "node/$node" --timeout=5s >/dev/null 2>&1; do
+    sleep 3
+  done
 done
-
-docker exec clab-oak-client kubectl wait \
-  --for=condition=Ready node/k3s-1 --timeout=300s
 
 docker exec clab-oak-client kubectl get nodes -A -o wide

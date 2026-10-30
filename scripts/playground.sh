@@ -1,7 +1,7 @@
 #!/bin/sh
 set -ve
 
-containerlab deploy -c -t lab.clab.yml
+containerlab deploy -c -t scripts/lab.clab.yml
 
 until docker exec clab-oak-client kubectl get node k3s-1 >/dev/null 2>&1; do
   sleep 5

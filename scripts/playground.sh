@@ -1,98 +1,13 @@
 #!/bin/sh
 set -ve
 
-containerlab deploy -c -t - <<'EOF'
+containerlab deploy -c -t lab.clab.yml
 
-name: oak
+until docker exec clab-oak-client kubectl get node k3s-1 >/dev/null 2>&1; do
+  sleep 5
+done
 
-topology:
-  defaults:
-    kind: linux
-    image: rancher/k3s:latest
-    entrypoint: /bin/sh
-    env:
-      K3S_TOKEN: lab-secret-123
+docker exec clab-oak-client kubectl wait \
+  --for=condition=Ready node/k3s-1 --timeout=300s
 
-  nodes:
-    k3s-1:
-      cmd: >-
-        -c 'until ip -4 addr show eth1 | grep -q 10.10.10.11;
-        do sleep 1; done;
-        exec k3s server --flannel-iface eth1'
-      env:
-        K3S_CLUSTER_INIT: "true"
-        K3S_NODE_IP: 10.10.10.11
-        K3S_TLS_SAN: 10.10.10.11
-        K3S_KUBECONFIG_OUTPUT: /shared/kubeconfig.yaml
-        K3S_KUBECONFIG_MODE: "644"
-      binds:
-        - ./:/shared
-      exec:
-        - ip addr add 10.10.10.11/24 dev eth1
-        - ip link set eth1 up
-
-    k3s-2:
-      cmd: >-
-        -c 'until ip -4 addr show eth1 | grep -q 10.10.10.12;
-        do sleep 1; done;
-        exec k3s server --flannel-iface eth1'
-      env:
-        K3S_URL: https://10.10.10.11:6443
-        K3S_NODE_IP: 10.10.10.12
-      exec:
-        - ip addr add 10.10.10.12/24 dev eth1
-        - ip link set eth1 up
-
-    k3s-3:
-      cmd: >-
-        -c 'until ip -4 addr show eth1 | grep -q 10.10.10.13;
-        do sleep 1; done;
-        exec k3s server --flannel-iface eth1'
-      env:
-        K3S_URL: https://10.10.10.11:6443
-        K3S_NODE_IP: 10.10.10.13
-      exec:
-        - ip addr add 10.10.10.13/24 dev eth1
-        - ip link set eth1 up
-
-    client:
-      image: alpine:latest
-      entrypoint: /bin/sh
-      cmd: -c 'sleep infinity'
-      binds:
-        - ./:/shared:ro
-      exec:
-        - ip addr add 10.10.10.100/24 dev eth1
-        - ip link set eth1 up
-        - apk add --no-cache kubectl curl
-        - mkdir -p /root/.kube
-        - >-
-          sh -c 'for i in $(seq 1 60); do
-          test -s /shared/kubeconfig.yaml && break;
-          sleep 2; done;
-          test -s /shared/kubeconfig.yaml || exit 1;
-          sed "s/127.0.0.1/10.10.10.11/"
-          /shared/kubeconfig.yaml > /root/.kube/config;
-          chmod 600 /root/.kube/config'
-
-    switch:
-      image: alpine:latest
-      entrypoint: /bin/sh
-      cmd: -c 'sleep infinity'
-      exec:
-        - apk add --no-cache iproute2
-        - ip link add br0 type bridge
-        - sh -c 'for i in eth1 eth2 eth3 eth4; do ip link set $i master br0; ip link set $i up; done'
-        - ip link set br0 up
-
-  links:
-    - endpoints: [k3s-1:eth1, switch:eth1]
-    - endpoints: [k3s-2:eth1, switch:eth2]
-    - endpoints: [k3s-3:eth1, switch:eth3]
-    - endpoints: [client:eth1, switch:eth4]
-
-EOF
-
-until docker exec clab-oak-client curl -ksf https://10.10.10.11:6443/readyz >/dev/null; do sleep 5; done
-docker exec clab-oak-client kubectl wait --for=condition=Ready nodes --all --timeout=300s
 docker exec clab-oak-client kubectl get nodes -A -o wide

@@ -52,4 +52,4 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run ${{ matrix.script }}
-        run: nsenter --target 1 --net sh "(cd scripts/ && sh ${{ matrix.script }})"
+        run: nsenter --target 1 --net sh "scripts/${{ matrix.script }})"

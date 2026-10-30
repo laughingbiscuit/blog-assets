@@ -64,7 +64,7 @@ topology:
       exec:
         - ip addr add 10.10.10.100/24 dev eth1
         - ip link set eth1 up
-        - apk add --no-cache kubectl
+        - apk add --no-cache kubectl curl
         - mkdir -p /root/.kube
         - >-
           sh -c 'for i in $(seq 1 60); do
@@ -92,5 +92,7 @@ topology:
     - endpoints: [client:eth1, switch:eth4]
 
 EOF
+
+until docker exec clab-oak-client curl -ksf https://10.10.10.11:6443/readyz >/dev/null; do sleep 5; done
 docker exec clab-oak-client kubectl wait --for=condition=Ready nodes --all --timeout=300s
 docker exec clab-oak-client kubectl get nodes -A -o wide
